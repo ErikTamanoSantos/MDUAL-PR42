@@ -37,7 +37,6 @@ class GameViewDisconnected extends HTMLElement {
 
         if (socketConnected) {
             document.querySelector('game-ws').showView('game-view-playing')
-            document.querySelector('game-ws').getViewShadow('game-view-playing').showInfo()
         } else {
             document.querySelector('game-ws').showView('game-view-disconnected')
         }

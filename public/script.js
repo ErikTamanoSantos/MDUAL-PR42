@@ -1,8 +1,5 @@
 let socket;
 let socketConnected = false;
-let socketId = ""
-let clients = []
-let selectedClient = ""
 
 function connect(protocol, ip, port) {
 
@@ -14,20 +11,34 @@ function connect(protocol, ip, port) {
     }
     
     socket.onmessage = function(event) {
-        let refViewPlaying = document.querySelector('game-ws').getViewShadow('game-view-playing')
         let obj = JSON.parse(event.data)
-        refViewPlaying.onServerMessage(obj)
+        document.querySelector('game-ws').getViewShadow('game-view-playing').onServerMessage(obj)
+    }
+
+    socket.onerror = function(error) {
+        console.log(`WebSocket error: ${error}`)
+    }
+
+    socket.onclose = async function(event) {
+
+        if (event.wasClean) {
+            console.log(`[close] Connection closed cleanly`)
+        } else {
+            console.log('[close] Connection died')
+        }
+
+        socketConnected = false 
+        await document.querySelector('game-ws').getViewShadow('game-view-playing').showDisconnecting()
     }
 }
 
 function disconnect() {
     console.log("Socket disconnected")
     socket.close()
-    socketConnected = false
 }
 
 function sendServer(obj) {
-    let txt = JSON.stringify(obj) === "{}"
-    if (msg == null || txt === "{}") return
-    socket.send(txt)
+    let msg = JSON.stringify(obj)
+    if (msg == null || msg === "{}") return
+    socket.send(msg) 
 }

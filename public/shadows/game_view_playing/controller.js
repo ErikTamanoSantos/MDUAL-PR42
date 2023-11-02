@@ -3,10 +3,18 @@ class GameViewPlaying extends HTMLElement {
         super()
         this.canvas = null
         this.ctx = null
-        this.cellOver = -1 // Conté l'índex de la cel·la sobre la que està el ratolí
-        this.coords = { } // Conté les coordenades, mides del canvas
-        this.board = ["", "", "", "", "", "", "", "", ""] // Tauler del joc (amb "X", "O" o "")
-        this.opponent = ""
+        this.cellOver = -1  // Conté l'índex de la cel·la sobre la que està el ratolí
+        this.cellOpponentOver = -1 // Conté l'índex de la cel·la sobre la que està l'oponent
+        this.coords = { }   // Conté les coordenades, mides del canvas
+        this.socketId = -1  // Conté l'identificador del socket
+        this.match = {      // Conté la informació de la partida
+            idMatch: -1,
+            playerX: "",
+            playerO: "",
+            board: [],
+            nextTurn: "X"
+        }
+        this.opponent = ""  // Conté el nom de l'oponent
         this.gameStatus = "waitingOpponent" 
         this.shadow = this.attachShadow({ mode: 'open' })
     }
@@ -40,17 +48,20 @@ class GameViewPlaying extends HTMLElement {
 
     async actionDisconnect () {
         disconnect()
+    }
+
+    async showDisconnecting () {
         document.querySelector('game-ws').showView('game-view-disconnecting')
         await new Promise(resolve => setTimeout(resolve, 1500))
         document.querySelector('game-ws').showView('game-view-disconnected')
     }
 
     showInfo () {
-        if (this.opponent == "") {
-            this.shadow.querySelector('#connectionInfo').innerHTML = `Connected to <b>${socket.url}</b>, with ID <b>${socketId}</b>`
-        } else {
-            this.shadow.querySelector('#connectionInfo').innerHTML = `Connected to <b>${socket.url}</b>, with ID <b>${socketId}</b>. Playing against: <b>${this.opponent}</b>`
+        let txt = `Connected to <b>${socket.url}</b>, with ID <b>${this.socketId}</b>.`
+        if (this.opponent != "") {
+            txt = txt + ` Playing against: <b>${this.opponent}</b>`
         }
+        this.shadow.querySelector('#connectionInfo').innerHTML = txt
     }
 
     initCanvas () {
@@ -93,7 +104,7 @@ class GameViewPlaying extends HTMLElement {
         this.coords.y = centerY - sixth - cellSize
         this.coords.cells = []
 
-        for (var cnt = 0; cnt < this.board.length; cnt++) {
+        for (var cnt = 0; cnt < 9; cnt++) {
             var cellRow = cnt % 3
             var cellCol = Math.floor(cnt / 3)
             var cellX = this.coords.x + (cellRow * cellSize)
@@ -108,7 +119,8 @@ class GameViewPlaying extends HTMLElement {
 
     onMouseMove (event) {
 
-        if (this.gameStatus == "move") {
+        if (this.isMyTurn() && this.gameStatus == "gameRound") {
+
             // Obtenir les coordenades del ratolí respecte al canvas
             var dpr = window.devicePixelRatio || 1
             var x = event.offsetX * dpr
@@ -116,14 +128,67 @@ class GameViewPlaying extends HTMLElement {
             
             // Utilitza la funció getCell per a obtenir l'índex de la cel·la
             this.cellOver = this.getCell(x, y)
-            this.canvas.style.cursor = this.cellOver != -1 ? 'pointer' : 'default'
+
+            if (this.match.board[this.cellOver] == "") {
+                // Si és una casella jugable, canvia el cursor del ratolí
+                this.canvas.style.cursor = 'pointer'
+            } else {
+                // Si no és jugable, restaura el cellOver i el cursor
+                this.cellOver = -1
+                this.canvas.style.cursor = 'default'
+            }    
+
+            // Envia al rival la cel·la del ratolí
+            sendServer({
+                type: "cellOver",
+                value: this.cellOver
+            })
         }
 
         this.draw()
     }
 
     onServerMessage (obj) {
-        console.log(obj)
+        switch (obj.type) {
+        case "socketId":
+            this.socketId = obj.value
+            break
+        case "initMatch":
+            this.match = obj.value
+            if (this.match.playerX == this.socketId) {
+                this.opponent = this.match.playerO
+            } else {
+                this.opponent = this.match.playerX
+            }
+            this.showInfo()
+            break
+        case "opponentDisconnected":
+            console.log("opponentDisconnected")
+            this.opponent = ""
+            this.gameStatus = "waitingOpponent"
+            break
+        case "opponentOver":
+            this.cellOpponentOver = obj.value
+            break
+        case "gameRound":
+            this.gameStatus = "gameRound"
+            this.cellOpponentOver = -1
+            break
+        }
+        this.draw()
+    }
+
+    isMyTurn () {
+        var nextTurn = this.match.nextTurn
+        var myTurn = false
+
+        if (nextTurn == "X" && this.socketId == this.match.playerX) {
+            myTurn = true
+        } else if (nextTurn == "O" && this.socketId == this.match.playerO) {
+            myTurn = true
+        }   
+        
+        return myTurn
     }
     
     getCell(x, y) {
@@ -147,7 +212,6 @@ class GameViewPlaying extends HTMLElement {
     
         return -1  // Retorna -1 si (x, y) no està dins de cap cel·la
     }
-    
 
     draw () {
         var ctx = this.ctx
@@ -161,8 +225,7 @@ class GameViewPlaying extends HTMLElement {
             case "waitingOpponent":
                 this.drawWaitingOpponent(ctx)
                 break
-            case "waintingMove":
-            case "move":
+            case "gameRound":
                 this.drawBoard(ctx)
                 break
             case "gameOver":
@@ -203,6 +266,16 @@ class GameViewPlaying extends HTMLElement {
         ctx.restore()
     }
 
+    fillRect (ctx, lineWidth, color, x, y, width, height) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.lineWidth = lineWidth
+        ctx.fillStyle = color
+        ctx.rect(x, y, width, height)
+        ctx.fill()
+        ctx.restore()
+    }
+
     drawText(ctx, fontFace, fontSize, color, alignment, text, x, y) {
         ctx.save();
         ctx.font = fontSize + 'px ' + fontFace;
@@ -227,22 +300,12 @@ class GameViewPlaying extends HTMLElement {
         ctx.restore();
     }
 
-    fillRect (ctx, lineWidth, color, x, y, width, height) {
-        ctx.save()
-        ctx.beginPath()
-        ctx.lineWidth = lineWidth
-        ctx.fillStyle = color
-        ctx.rect(x, y, width, height)
-        ctx.fill()
-        ctx.restore()
-    }
-
     drawWaitingOpponent (ctx) {
         var fontFace = 'Arial'
         var fontSize = 30
         var color = 'black'
         var alignment = 'center'
-        var text = 'Waiting for opponent...'
+        var text = 'Esperant un oponent...'
         var x = this.coords.centerX
         var y = this.coords.centerY
         this.drawText(ctx, fontFace, fontSize, color, alignment, text, x, y)
@@ -251,14 +314,32 @@ class GameViewPlaying extends HTMLElement {
     drawBoard (ctx) {
         var color = "black"
         var cellSize = this.coords.cellSize
+        var board = this.match.board
 
-        for (var cnt = 0; cnt < this.board.length; cnt++) {
-            var cell = this.board[cnt]
+        for (var cnt = 0; cnt < board.length; cnt++) {
+            var cell = board[cnt]
             var cellCoords = this.coords.cells[cnt]
 
             // Si toca jugar, i el ratolí està sobre la cel·la, dibuixa el fons
-            if (this.cellOver == cnt) {
+            if (this.cellOver == cnt && board[cnt] == "") {
+                var cellOverCords = this.coords.cells[this.cellOver]
                 this.fillRect(ctx, 10, "lightblue", cellCoords.x, cellCoords.y, cellSize, cellSize)
+                if (this.socketId == this.match.playerX) {
+                   this.drawX(ctx, "red", cellOverCords, cellSize)
+                } else if (this.socketId == this.match.playerO) {
+                    this.drawO(ctx, "green", cellOverCords, cellSize)
+                } 
+            }
+
+            // Si no toca jugar, però sabem la posició del ratolí de l'oponent
+            if (this.cellOpponentOver == cnt) {
+                var cellOverCords = this.coords.cells[this.cellOpponentOver]
+                this.fillRect(ctx, 10, "#ccc", cellCoords.x, cellCoords.y, cellSize, cellSize)
+                if (this.socketId == this.match.playerX) {
+                   this.drawO(ctx, "#888", cellOverCords, cellSize)
+                } else if (this.socketId == this.match.playerO) {
+                    this.drawX(ctx, "#888", cellOverCords, cellSize)
+                } 
             }
 
             // Dibuixa el requadre de la cel·la
@@ -266,23 +347,31 @@ class GameViewPlaying extends HTMLElement {
 
             // Dibuixa el contingut de la cel·la
             if (cell == "X") {
-                var padding = 20
-                var x0 = cellCoords.x + padding
-                var y0 = cellCoords.y + padding
-                var x1 = cellCoords.x + cellSize - padding
-                var y1 = cellCoords.y + cellSize - padding
-                this.drawLine(ctx, 10, "red", x0, y0, x1, y1)
-                x0 = cellCoords.x + cellSize - padding
-                x1 = cellCoords.x + padding
-                this.drawLine(ctx, 10, "red", x0, y0, x1, y1)
+                this.drawX(ctx, "red", cellCoords, cellSize)
             }
             if (cell == "O") {
-                var padding = 20
-                var x = cellCoords.x + (cellSize / 2)
-                var y = cellCoords.y + (cellSize / 2)
-                this.drawCircle(ctx, 10, "green", x, y, (cellSize / 2) - padding)
+                this.drawO(ctx, "green", cellCoords, cellSize)
             }
         }
+    }
+
+    drawX (ctx, color, cellCoords, cellSize) {
+        var padding = 20
+        var x0 = cellCoords.x + padding
+        var y0 = cellCoords.y + padding
+        var x1 = cellCoords.x + cellSize - padding
+        var y1 = cellCoords.y + cellSize - padding
+        this.drawLine(ctx, 10, color, x0, y0, x1, y1)
+        x0 = cellCoords.x + cellSize - padding
+        x1 = cellCoords.x + padding
+        this.drawLine(ctx, 10, color, x0, y0, x1, y1)
+    }
+
+    drawO (ctx, color, cellCoords, cellSize) {
+        var padding = 20
+        var x = cellCoords.x + (cellSize / 2)
+        var y = cellCoords.y + (cellSize / 2)
+        this.drawCircle(ctx, 10, color, x, y, (cellSize / 2) - padding)
     }
 }
 

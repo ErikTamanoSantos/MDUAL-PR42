@@ -18,6 +18,9 @@ const webSockets = require('./utilsWebSockets.js')
 var ws = new webSockets()
 let shadows = new shadowsObj()
 
+// Jugadors i partides
+let matches = []
+
 // Start HTTP server
 const app = express()
 const port = process.env.PORT || 8888
@@ -46,78 +49,161 @@ function shutDown() {
 ws.init(httpServer, port)
 
 ws.onConnection = (socket, id) => {
+
   console.log("WebSocket client connected: " + id)
+  idMatch = -1
+  playersReady = false
+  
+  if (matches.length == 0) {
+    // Si no hi ha partides, en creem una de nova
+    idMatch = 0
+    matches.push({
+      playerX: id, 
+      playerO: "", 
+      board: ["", "", "", "", "", "", "", "", ""],
+      nextTurn: "X"
+    })
+  } else {
+    // Si hi ha partides, mirem si n'hi ha alguna en espera de jugador
+    for (let i = 0; i < matches.length; i++) {
+      if (matches[i].playerX == "") {
+        idMatch = i
+        matches[i].playerX = id
+        playersReady = true
+        break
+      } else if (matches[i].playerO == "") {
+        idMatch = i
+        matches[i].playerO = id
+        playersReady = true
+        break
+      }
+    }
+    // Si hi ha partides, però totes ocupades creem una de nova
+    if (idMatch == -1) {
+      idMatch = matches.length
+      matches.push({ 
+        playerX: id, 
+        playerO: "", 
+        board: ["", "", "", "", "", "", "", "", ""],
+        nextTurn: "X"
+      })
+    }
+  }
 
-  // Saludem personalment al nou client
+  // Enviem l'identificador de client socket
   socket.send(JSON.stringify({
-    type: "private",
-    from: "server",
-    value: "Welcome to the chat server"
-  }))
-
-  // Li enviem el seu identificador
-  socket.send(JSON.stringify({
-    type: "id",
-    from: "server",
+    type: "socketId",
     value: id
   }))
 
-  // Enviem al client la llista amb tots els clients connectats
+  // Enviem l'estat inicial de la partida
   socket.send(JSON.stringify({
-    type: "list",
-    from: "server",
-    list: ws.getClients()
+    type: "initMatch",
+    value: matches[idMatch]
   }))
 
-  // Enviem la direcció URI del nou client a tothom 
-  ws.broadcast(JSON.stringify({
-    type: "connected",
-    from: "server",
-    id: id
-  }))
+  // Si ja hi ha dos jugadors
+  if (playersReady) {
+    let idOpponent = ""
+    if (matches[idMatch].playerX == id) {
+      idOpponent = matches[idMatch].playerO
+    } else {
+      idOpponent = matches[idMatch].playerX
+    }
+
+    let wsOpponent = ws.getClientById(idOpponent)
+    if (wsOpponent != null) {
+      // Informem al oponent que ja té rival
+      wsOpponent.send(JSON.stringify({
+        type: "initMatch",
+        value: matches[idMatch]
+      }))
+
+      // Informem al oponent que toca jugar
+      wsOpponent.send(JSON.stringify({
+        type: "gameRound",
+        value: matches[idMatch]
+      }))
+
+      // Informem al player que toca jugar
+      socket.send(JSON.stringify({
+        type: "gameRound",
+        value: matches[idMatch]
+      }))
+    }
+  }
 }
 
 ws.onMessage = (socket, id, msg) => {
-    let obj = JSON.parse(msg)
-    console.log(`New message:  ${JSON.stringify(obj.type)}`)
-    switch (obj.type) {
-    case "list":
-        socket.send(JSON.stringify({
-        type: "list",
-        from: "server",
-        list: ws.getClients()
-        }))
-        break;
-    case "private":
-        let destSocket = ws.getClientById(obj.destination)
-        if (destSocket) {
-        destSocket.send(JSON.stringify({
-            type: "private",
-            from: id,
-            value: obj.value
-        }))
-        }
-        break;
-    case "broadcast":
+  let obj = JSON.parse(msg)
+  let idMatch = -1
 
-        ws.broadcast(JSON.stringify({
-        type: "broadcast",
-        from: id,
-        value: obj.value
-        }))
-        break;
+  // Busquem la partida a la que pertany el client
+  for (let i = 0; i < matches.length; i++) {
+    if (matches[i].playerX == id || matches[i].playerO == id) {
+      idMatch = i
+      break
     }
+  }
+
+  // Processar el missatge rebut
+  if (idMatch != -1) {
+    switch (obj.type) {
+    case "cellOver":
+      // Si revem la posició del mouse de qui està jugant, l'enviem al rival
+      let playerTurn = matches[idMatch].nextTurn
+      let idSend = matches[idMatch].playerX
+      if (playerTurn == "X") idSend = matches[idMatch].playerO
+
+      let wsSend = ws.getClientById(idSend)
+      if (wsSend != null) {
+        wsSend.send(JSON.stringify({
+          type: "opponentOver",
+          value: obj.value
+        }))
+      }
+      break
+    }
+  }
 }
 
 ws.onClose = (socket, id) => {
   console.log("WebSocket client disconnected: " + id)
 
-  // Informem a tothom que el client s'ha desconnectat
-  ws.broadcast(JSON.stringify({
-    type: "disconnected",
-    from: "server",
-    id: id
-  }))
+  // Busquem la partida a la que pertany el client
+  idMatch = -1
+  for (let i = 0; i < matches.length; i++) {
+    if (matches[i].playerX == id || matches[i].playerO == id) {
+      idMatch = i
+      break
+    }
+  }
+  // Informem al rival que s'ha desconnectat
+  if (idMatch != -1) {
+    if (matches[idMatch].playerX == "" && matches[idMatch].playerO == "") {
+      // Esborrar la partida per falta de jugadors
+      matches.splice(idMatch, 1)
+    } else {
+      
+      // Esborrar el jugador de la partida
+      let rival = ""
+      if (matches[idMatch].playerX == id) {
+        matches[idMatch].playerX = ""
+        rival = matches[idMatch].playerO
+      } else {
+        matches[idMatch].playerO = ""
+        rival = matches[idMatch].playerX
+      }
+
+      // Informar al rival que s'ha desconnectat
+      let rivalSocket = ws.getClientById(rival)
+      if (rivalSocket != null) {
+        rivalSocket.send(JSON.stringify({
+          type: "opponentDisconnected"
+        }))
+      }
+    }
+  }
 }
 
 // Configurar la direcció '/index-dev.html' per retornar
