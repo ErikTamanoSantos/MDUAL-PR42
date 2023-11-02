@@ -137,6 +137,9 @@ ws.onConnection = (socket, id) => {
 ws.onMessage = (socket, id, msg) => {
   let obj = JSON.parse(msg)
   let idMatch = -1
+  let playerTurn = ""
+  let idSend = ""
+  let wsSend = null
 
   // Busquem la partida a la que pertany el client
   for (let i = 0; i < matches.length; i++) {
@@ -151,17 +154,83 @@ ws.onMessage = (socket, id, msg) => {
     switch (obj.type) {
     case "cellOver":
       // Si revem la posició del mouse de qui està jugant, l'enviem al rival
-      let playerTurn = matches[idMatch].nextTurn
-      let idSend = matches[idMatch].playerX
+      playerTurn = matches[idMatch].nextTurn
+      idSend = matches[idMatch].playerX
       if (playerTurn == "X") idSend = matches[idMatch].playerO
 
-      let wsSend = ws.getClientById(idSend)
+      wsSend = ws.getClientById(idSend)
       if (wsSend != null) {
         wsSend.send(JSON.stringify({
           type: "opponentOver",
           value: obj.value
         }))
       }
+      break
+    case "cellChoice":
+      // Si rebem la posició de la cel·la triada, actualitzem la partida
+      playerTurn = matches[idMatch].nextTurn
+      matches[idMatch].board[obj.value] = playerTurn
+
+      // Comprovem si hi ha guanyador
+      let winner = ""
+      let board = matches[idMatch].board
+
+      // Verificar files
+      if (board[0] == board[1] && board[0] == board[2]) winner = board[0]
+      if (board[3] == board[4] && board[3] == board[5]) winner = board[3]
+      if (board[6] == board[7] && board[6] == board[8]) winner = board[6]
+
+      // Verificar columnes
+      if (board[0] == board[3] && board[0] == board[6]) winner = board[0]
+      if (board[1] == board[4] && board[1] == board[7]) winner = board[1]
+      if (board[2] == board[5] && board[2] == board[8]) winner = board[2]
+
+      // Verificar diagonals
+      if (board[0] == board[4] && board[0] == board[8]) winner = board[0]
+      if (board[2] == board[4] && board[2] == board[6]) winner = board[2]
+
+      // Comprovem si hi ha empat
+      let tie = true
+      for (let i = 0; i < board.length; i++) {
+        if (board[i] == "") {
+          tie = false
+          break
+        }
+      }
+
+      if (winner == "" && !tie) {
+        // Si no hi ha guanyador ni empat, canviem el torn
+        if (matches[idMatch].nextTurn == "X") {
+          matches[idMatch].nextTurn = "O"
+        } else {
+          matches[idMatch].nextTurn = "X"
+        }
+
+        // Informem al jugador de la partida
+        socket.send(JSON.stringify({
+          type: "gameRound",
+          value: matches[idMatch]
+        }))
+
+        // Informem al rival de la partida
+        let idOpponent = ""
+        if (matches[idMatch].playerX == id) {
+          idOpponent = matches[idMatch].playerO
+        } else {
+          idOpponent = matches[idMatch].playerX
+        }
+        let wsOpponent = ws.getClientById(idOpponent)
+        if (wsOpponent != null) {
+          wsOpponent.send(JSON.stringify({
+            type: "gameRound",
+            value: matches[idMatch]
+          }))
+        }
+      } else {
+        // Si hi ha guanyador o empat, acabem la partida
+        // TODO
+      }
+
       break
     }
   }

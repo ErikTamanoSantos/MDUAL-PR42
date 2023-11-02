@@ -44,6 +44,7 @@ class GameViewPlaying extends HTMLElement {
         // Vincular l'event de canvi de mida de la finestra a la mida del canvas
         window.addEventListener('resize', this.onResizeCanvas.bind(this))
         this.canvas.addEventListener('mousemove', this.onMouseMove.bind(this))
+        this.canvas.addEventListener('click', this.onMouseClick.bind(this))
     } 
 
     async actionDisconnect () {
@@ -148,6 +149,32 @@ class GameViewPlaying extends HTMLElement {
         this.draw()
     }
 
+    onMouseClick (event) {
+
+        if (this.isMyTurn() && this.gameStatus == "gameRound") {
+
+            // Obtenir les coordenades del ratolí respecte al canvas
+            var dpr = window.devicePixelRatio || 1
+            var x = event.offsetX * dpr
+            var y = event.offsetY * dpr
+            
+            // Utilitza la funció getCell per a obtenir l'índex de la cel·la
+            this.cellOver = this.getCell(x, y)
+
+            if (this.match.board[this.cellOver] != "") {
+                this.cellOver = -1
+            }    
+
+            if (this.cellOver != -1) {
+                // Envia la jugada
+                sendServer({
+                    type: "cellChoice",
+                    value: this.cellOver
+                })
+            }
+        }
+    }
+
     onServerMessage (obj) {
         switch (obj.type) {
         case "socketId":
@@ -173,6 +200,7 @@ class GameViewPlaying extends HTMLElement {
         case "gameRound":
             this.gameStatus = "gameRound"
             this.cellOpponentOver = -1
+            this.match = obj.value
             break
         }
         this.draw()
