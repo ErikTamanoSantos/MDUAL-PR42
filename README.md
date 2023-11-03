@@ -8,4 +8,4 @@ npm run dev
 
 Obrir dues finestres de navegador a la direcció
 
-[Localhost Link](http://localhost:8888)
+[http://localhost:8888](http://localhost:8888)
