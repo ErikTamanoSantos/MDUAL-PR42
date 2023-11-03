@@ -107,8 +107,8 @@ class GameViewPlaying extends HTMLElement {
         this.canvas = this.shadow.querySelector('canvas')
         this.ctx = this.canvas.getContext('2d')
 
-        // Definir la mida del canvas segons la resolución del dispositiu
-        this.onResizeCanvas()   
+        // Definir la mida del canvas segons la resolución del dispositiu (amb 100 de retard pel Safari)
+        setTimeout(() => { this.onResizeCanvas() }, 100)
     }
 
     onResizeCanvas () {
@@ -315,7 +315,7 @@ class GameViewPlaying extends HTMLElement {
 
         // Calcula els fps (opcional)
         const fps = 1000 / elapsed
-        // console.log(`FPS: ${fps.toFixed(2)}, time: ${elapsed}`)
+        // console.log(`FPS: ${fps.toFixed(2)}, time: ${elapsed}, timeStamp: ${timestamp.toFixed(4)}`)
 
         // Dibuixar la partida
         this.draw()
