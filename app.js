@@ -177,19 +177,19 @@ ws.onMessage = (socket, id, msg) => {
 
       // Verificar files
       if (board[0] == board[1] && board[0] == board[2]) winner = board[0]
-      if (board[3] == board[4] && board[3] == board[5]) winner = board[3]
-      if (board[6] == board[7] && board[6] == board[8]) winner = board[6]
+      else if (board[3] == board[4] && board[3] == board[5]) winner = board[3]
+      else if (board[6] == board[7] && board[6] == board[8]) winner = board[6]
 
       // Verificar columnes
-      if (board[0] == board[3] && board[0] == board[6]) winner = board[0]
-      if (board[1] == board[4] && board[1] == board[7]) winner = board[1]
-      if (board[2] == board[5] && board[2] == board[8]) winner = board[2]
+      else if (board[0] == board[3] && board[0] == board[6]) winner = board[0]
+      else if (board[1] == board[4] && board[1] == board[7]) winner = board[1]
+      else if (board[2] == board[5] && board[2] == board[8]) winner = board[2]
 
       // Verificar diagonals
-      if (board[0] == board[4] && board[0] == board[8]) winner = board[0]
-      if (board[2] == board[4] && board[2] == board[6]) winner = board[2]
+      else if (board[0] == board[4] && board[0] == board[8]) winner = board[0]
+      else if (board[2] == board[4] && board[2] == board[6]) winner = board[2]
 
-      // Comprovem si hi ha empat
+      // Comprovem si hi ha empat (ja no hi ha cap espai buit)
       let tie = true
       for (let i = 0; i < board.length; i++) {
         if (board[i] == "") {
@@ -226,9 +226,32 @@ ws.onMessage = (socket, id, msg) => {
             value: matches[idMatch]
           }))
         }
+
       } else {
         // Si hi ha guanyador o empat, acabem la partida
-        // TODO
+
+          // Informem al jugador de la partida
+          socket.send(JSON.stringify({
+            type: "gameOver",
+            value: matches[idMatch],
+            winner: winner
+          }))
+
+          // Informem al rival de la partida
+          let idOpponent = ""
+          if (matches[idMatch].playerX == id) {
+            idOpponent = matches[idMatch].playerO
+          } else {
+            idOpponent = matches[idMatch].playerX
+          }
+          let wsOpponent = ws.getClientById(idOpponent)
+          if (wsOpponent != null) {
+            wsOpponent.send(JSON.stringify({
+              type: "gameOver",
+              value: matches[idMatch],
+              winner: winner
+            }))
+          }
       }
 
       break
@@ -249,10 +272,14 @@ ws.onClose = (socket, id) => {
   }
   // Informem al rival que s'ha desconnectat
   if (idMatch != -1) {
+
     if (matches[idMatch].playerX == "" && matches[idMatch].playerO == "") {
       // Esborrar la partida per falta de jugadors
       matches.splice(idMatch, 1)
     } else {
+      
+      // Reiniciem el taulell
+      matches[idMatch].board = ["", "", "", "", "", "", "", "", ""]
       
       // Esborrar el jugador de la partida
       let rival = ""

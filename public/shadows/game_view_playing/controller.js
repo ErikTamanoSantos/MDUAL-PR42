@@ -3,8 +3,8 @@ class GameViewPlaying extends HTMLElement {
         super()
         this.canvas = null
         this.ctx = null
-        this.cellOver = -1  // Conté l'índex de la cel·la sobre la que està el ratolí
-        this.cellOpponentOver = -1 // Conté l'índex de la cel·la sobre la que està l'oponent
+        this.cellOver = -1  // Conté l'índex de la casella sobre la que està el ratolí
+        this.cellOpponentOver = -1 // Conté l'índex de la casella sobre la que està l'oponent
         this.coords = { }   // Conté les coordenades, mides del canvas
         this.socketId = -1  // Conté l'identificador del socket
         this.match = {      // Conté la informació de la partida
@@ -18,6 +18,7 @@ class GameViewPlaying extends HTMLElement {
         this.gameStatus = "waitingOpponent" 
         this.player = "X"
         this.isMyTurn = false
+        this.winner = ""
 
         // Crea l'element shadow DOM
         this.shadow = this.attachShadow({ mode: 'open' })
@@ -35,11 +36,11 @@ class GameViewPlaying extends HTMLElement {
         const htmlContent = await fetch('/shadows/game_view_playing/view.html').then(r => r.text())
 
         // Converteix la cadena HTML en nodes utilitzant un DocumentFragment
-        const template = document.createElement('template');
-        template.innerHTML = htmlContent;
+        const template = document.createElement('template')
+        template.innerHTML = htmlContent
         
         // Clona i afegeix el contingut del template al shadow
-        this.shadow.appendChild(template.content.cloneNode(true));
+        this.shadow.appendChild(template.content.cloneNode(true))
 
         // Definir els 'eventListeners' dels objectes 
         this.shadow.querySelector('#buttonDisconnect').addEventListener('click', this.actionDisconnect.bind(this))
@@ -126,14 +127,14 @@ class GameViewPlaying extends HTMLElement {
 
     onMouseMove (event) {
 
-        if (this.isMyTurn() && this.gameStatus == "gameRound") {
+        if (this.isMyTurn && this.gameStatus == "gameRound") {
 
             // Obtenir les coordenades del ratolí respecte al canvas
             var dpr = window.devicePixelRatio || 1
             var x = event.offsetX * dpr
             var y = event.offsetY * dpr
             
-            // Utilitza la funció getCell per a obtenir l'índex de la cel·la
+            // Utilitza la funció getCell per a obtenir l'índex de la casella
             this.cellOver = this.getCell(x, y)
 
             if (this.match.board[this.cellOver] == "") {
@@ -145,7 +146,7 @@ class GameViewPlaying extends HTMLElement {
                 this.canvas.style.cursor = 'default'
             }    
 
-            // Envia al rival la cel·la del ratolí
+            // Envia al rival la casella del ratolí
             sendServer({
                 type: "cellOver",
                 value: this.cellOver
@@ -157,14 +158,14 @@ class GameViewPlaying extends HTMLElement {
 
     onMouseClick (event) {
 
-        if (this.isMyTurn() && this.gameStatus == "gameRound") {
+        if (this.isMyTurn && this.gameStatus == "gameRound") {
 
             // Obtenir les coordenades del ratolí respecte al canvas
             var dpr = window.devicePixelRatio || 1
             var x = event.offsetX * dpr
             var y = event.offsetY * dpr
             
-            // Utilitza la funció getCell per a obtenir l'índex de la cel·la
+            // Utilitza la funció getCell per a obtenir l'índex de la casella
             this.cellOver = this.getCell(x, y)
 
             if (this.match.board[this.cellOver] != "") {
@@ -184,42 +185,53 @@ class GameViewPlaying extends HTMLElement {
     }
 
     onServerMessage (obj) {
+
+        this.isMyTurn = false
+        this.opponentId = ""
+        this.cellOpponentOver = -1
+        this.winner = ""
+
         switch (obj.type) {
         case "socketId":
             this.socketId = obj.value
             break
         case "initMatch":
             this.match = obj.value
-            this.isMyTurn = false
-            if (this.match.playerX == this.socketId) {
-                this.player = "X"
-                this.opponentId = this.match.playerO
-            } else {
-                this.player = "O"
-                this.opponentId = this.match.playerX
-            }
             this.showInfo()
             break
         case "opponentDisconnected":
             console.log("opponentDisconnected")
-            this.opponentId = ""
             this.gameStatus = "waitingOpponent"
             this.showInfo()
             break
         case "opponentOver":
             this.cellOpponentOver = obj.value
             break
+        case "gameOver":
+            this.gameStatus = "gameOver"
+            this.match = obj.value
+            this.winner = obj.winner
+            break
         case "gameRound":
             this.gameStatus = "gameRound"
-            this.cellOpponentOver = -1
             this.match = obj.value
-            if (this.match.nextTurn == "X" || this.match.nextTurn == "O") {
-                this.isMyTurn = true
+
+            if (this.match.playerX == this.socketId) {
+                this.player = "X"
+                this.opponentId = this.match.playerO
+                if (this.match.nextTurn == "X") {
+                    this.isMyTurn = true
+                }
             } else {
-                this.isMyTurn = false
+                this.player = "O"
+                this.opponentId = this.match.playerX
+                if (this.match.nextTurn == "O") {
+                    this.isMyTurn = true
+                }
             }
             break
         }
+
         this.draw()
     }
 
@@ -230,19 +242,19 @@ class GameViewPlaying extends HTMLElement {
         for (var cnt = 0; cnt < cells.length; cnt++) {
             var cell = cells[cnt]
             
-            // Calcula les coordenades mínimes i màximes del requadre de la cel·la
+            // Calcula les coordenades mínimes i màximes del requadre de la casella
             var x0 = cell.x
             var y0 = cell.y
             var x1 = cell.x + cellSize
             var y1 = cell.y + cellSize
             
-            // Comprova si (x, y) està dins del requadre de la cel·la
+            // Comprova si (x, y) està dins del requadre de la casella
             if (x >= x0 && x <= x1 && y >= y0 && y <= y1) {
                 return cnt
             }
         }
     
-        return -1  // Retorna -1 si (x, y) no està dins de cap cel·la
+        return -1  // Retorna -1 si (x, y) no està dins de cap casella
     }
 
     draw () {
@@ -309,38 +321,49 @@ class GameViewPlaying extends HTMLElement {
     }
 
     drawText(ctx, fontFace, fontSize, color, alignment, text, x, y) {
-        ctx.save();
-        ctx.font = fontSize + 'px ' + fontFace;
-        var metrics = ctx.measureText(text);
-        var textWidth = metrics.width;
+        var dpr = window.devicePixelRatio || 1
+        var prpFont = fontSize * dpr
+
+        ctx.save()
+        ctx.font = prpFont + "px " + fontFace
+        var metrics = ctx.measureText(text)
+        var textWidth = metrics.width
 
         switch (alignment) {
             case 'center':
-                x -= textWidth / 2;
-                break;
+                x -= textWidth / 2
+                break
             case 'right':
-                x -= textWidth;
-                break;
+                x -= textWidth
+                break
             case 'left':
             default:
                 // No adjustment needed for left alignment
-                break;
+                break
         }
 
-        ctx.fillStyle = color;
-        ctx.fillText(text, x, y);
-        ctx.restore();
+        ctx.fillStyle = color
+        ctx.fillText(text, x, y)
+        ctx.restore()
     }
 
     drawWaitingOpponent (ctx) {
-        var fontFace = 'Arial'
-        var fontSize = 30
-        var color = 'black'
-        var alignment = 'center'
         var text = 'Esperant un oponent...'
         var x = this.coords.centerX
         var y = this.coords.centerY
-        this.drawText(ctx, fontFace, fontSize, color, alignment, text, x, y)
+        this.drawText(ctx, "Arial", 24, "black", "center", text, x, y)
+    }
+
+    drawGameOver (ctx) {
+        var text = 'Game Over'
+        if (this.winner != "") {
+            text = text + `, guanyador: ${this.winner}`
+        } else {
+            text = text + ', empat'
+        }
+        var x = this.coords.centerX
+        var y = this.coords.centerY
+        this.drawText(ctx, "Arial", 24, "black", "center", text, x, y)
     }
 
     drawBoard (ctx) {
@@ -349,43 +372,45 @@ class GameViewPlaying extends HTMLElement {
         var colorX = "red"
         var colorO = "green"
         var colorBoard = "black"
+        var colorOver = "lightblue"
 
-        if (!this.isMyTurn()) {
-            colorX = "888"
-            colorO = "888"
-            colorBoard = "888"
+        if (!this.isMyTurn) {
+            colorX = "#888"
+            colorO = "#888"
+            colorBoard = "#888"
+            colorOver = "#ccc"
         }
 
+        // Per totes les caselles del tauler
         for (var cnt = 0; cnt < board.length; cnt++) {
             var cell = board[cnt]
             var cellCoords = this.coords.cells[cnt]
 
-            // Si toca jugar, i el ratolí està sobre la cel·la, dibuixa el fons
-            if (this.cellOver == cnt && board[cnt] == "") {
-                var cellOverCords = this.coords.cells[this.cellOver]
-                this.fillRect(ctx, 10, "lightblue", cellCoords.x, cellCoords.y, cellSize, cellSize)
-                if (this.socketId == this.match.playerX) {
-                   this.drawX(ctx, colorX, cellOverCords, cellSize)
-                } else if (this.socketId == this.match.playerO) {
-                    this.drawO(ctx, colorO, cellOverCords, cellSize)
+            // Si toca jugar, i el ratolí està sobre la casella, dibuixa la simulació de partida
+            if (this.isMyTurn && this.cellOver == cnt && board[cnt] == "") {
+                this.fillRect(ctx, 10, colorOver, cellCoords.x, cellCoords.y, cellSize, cellSize)
+                if (this.player == "X") {
+                   this.drawX(ctx, colorX, cellCoords, cellSize)
+                } else {
+                    this.drawO(ctx, colorO, cellCoords, cellSize)
                 } 
             }
 
-            // Si no toca jugar, però sabem la posició del ratolí de l'oponent
-            if (this.cellOpponentOver == cnt) {
+            // Si no toca jugar i la casella coincideix amb la posició del ratolí de l'oponent, ho dibuixem
+            if (!this.isMyTurn && this.cellOpponentOver == cnt) {
                 var cellOverCords = this.coords.cells[this.cellOpponentOver]
-                this.fillRect(ctx, 10, "#ccc", cellCoords.x, cellCoords.y, cellSize, cellSize)
-                if (this.socketId == this.match.playerX) {
-                   this.drawO(ctx, "#888", cellOverCords, cellSize)
-                } else if (this.socketId == this.match.playerO) {
-                    this.drawX(ctx, "#888", cellOverCords, cellSize)
+                this.fillRect(ctx, 10, colorOver, cellCoords.x, cellCoords.y, cellSize, cellSize)
+                if (this.player == "X") {
+                   this.drawO(ctx, colorO, cellOverCords, cellSize)
+                } else {
+                    this.drawX(ctx, colorX, cellOverCords, cellSize)
                 } 
             }
 
-            // Dibuixa el requadre de la cel·la
+            // Dibuixa el requadre de la casella
             this.drawRect(ctx, 10, colorBoard, cellCoords.x, cellCoords.y, cellSize, cellSize)
 
-            // Dibuixa el contingut de la cel·la
+            // Dibuixa el contingut de la casella
             if (cell == "X") {
                 this.drawX(ctx, colorX, cellCoords, cellSize)
             }

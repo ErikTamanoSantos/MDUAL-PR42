@@ -14,11 +14,11 @@ class GameViewDisconnecting extends HTMLElement {
         const htmlContent = await fetch('/shadows/game_view_disconnecting/view.html').then(r => r.text())
 
         // Converteix la cadena HTML en nodes utilitzant un DocumentFragment
-        const template = document.createElement('template');
-        template.innerHTML = htmlContent;
+        const template = document.createElement('template')
+        template.innerHTML = htmlContent
         
         // Clona i afegeix el contingut del template al shadow
-        this.shadow.appendChild(template.content.cloneNode(true));
+        this.shadow.appendChild(template.content.cloneNode(true))
 
         // Definir els 'eventListeners' dels objectes
     }
