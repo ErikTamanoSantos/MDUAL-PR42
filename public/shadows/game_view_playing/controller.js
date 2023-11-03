@@ -3,6 +3,8 @@ class GameViewPlaying extends HTMLElement {
         super()
         this.canvas = null
         this.ctx = null
+
+        // Estat del joc i coordenades de dibuix
         this.cellOver = -1  // Conté l'índex de la casella sobre la que està el ratolí
         this.cellOpponentOver = -1 // Conté l'índex de la casella sobre la que està l'oponent
         this.coords = { }   // Conté les coordenades, mides del canvas
@@ -20,11 +22,16 @@ class GameViewPlaying extends HTMLElement {
         this.isMyTurn = false
         this.winner = ""
 
+        // Imatges
         this.imgX = null
         this.imgXloaded = false
-
         this.imgO = null
         this.imgOloaded = false
+
+        // Funcions per controlar el redibuix i els FPS
+        this.reRunLastDrawTime = Date.now();  // Nova propietat per rastrejar l'últim temps de dibuix
+        this.reRunRequestId = null;           // Identificador per a la cancel·lació de requestAnimationFrame
+        this.reRunShouldStop = false;
 
         // Crea l'element shadow DOM
         this.shadow = this.attachShadow({ mode: 'open' })
@@ -68,6 +75,13 @@ class GameViewPlaying extends HTMLElement {
         this.canvas.addEventListener('mousemove', this.onMouseMove.bind(this))
         this.canvas.addEventListener('click', this.onMouseClick.bind(this))
     } 
+
+    async disconnectedCallback() {
+        // Quan es treu el shadow DOM de la pàgina (no quan es desconnecta el socket)
+
+        this.shouldStop = true;
+        cancelAnimationFrame(this.requestId);
+    }
 
     async actionDisconnect () {
         disconnect()
@@ -137,7 +151,7 @@ class GameViewPlaying extends HTMLElement {
         }
 
         // Redibuixar el canvas
-        this.draw()
+        this.restartRun()
     }
 
     onMouseMove (event) {
@@ -148,27 +162,31 @@ class GameViewPlaying extends HTMLElement {
             var dpr = window.devicePixelRatio || 1
             var x = event.offsetX * dpr
             var y = event.offsetY * dpr
-            
+            var previousCellOver = this.cellOver
+
             // Utilitza la funció getCell per a obtenir l'índex de la casella
             this.cellOver = this.getCell(x, y)
 
-            if (this.match.board[this.cellOver] == "") {
-                // Si és una casella jugable, canvia el cursor del ratolí
-                this.canvas.style.cursor = 'pointer'
-            } else {
-                // Si no és jugable, restaura el cellOver i el cursor
-                this.cellOver = -1
-                this.canvas.style.cursor = 'default'
-            }    
+            if (previousCellOver != this.cellOver) {
 
-            // Envia al rival la casella del ratolí
-            sendServer({
-                type: "cellOver",
-                value: this.cellOver
-            })
+                if (this.match.board[this.cellOver] == "") {
+                    // Si és una casella jugable, canvia el cursor del ratolí
+                    this.canvas.style.cursor = 'pointer'
+                } else {
+                    // Si no és jugable, restaura el cellOver i el cursor
+                    this.cellOver = -1
+                    this.canvas.style.cursor = 'default'
+                }    
+
+                // Envia al rival la casella del ratolí
+                sendServer({
+                    type: "cellOver",
+                    value: this.cellOver
+                })
+            }
         }
 
-        this.draw()
+        this.restartRun()
     }
 
     onMouseClick (event) {
@@ -196,7 +214,7 @@ class GameViewPlaying extends HTMLElement {
             }
         }
 
-        this.draw()
+        this.restartRun()
     }
 
     onServerMessage (obj) {
@@ -247,7 +265,7 @@ class GameViewPlaying extends HTMLElement {
             break
         }
 
-        this.draw()
+        this.restartRun()
     }
 
     getCell(x, y) {
@@ -272,24 +290,59 @@ class GameViewPlaying extends HTMLElement {
         return -1  // Retorna -1 si (x, y) no està dins de cap casella
     }
 
-    draw () {
-        var ctx = this.ctx
+    restartRun () {
+        this.reRunLastDrawTime = Date.now()
 
-        // Dibuixar el fons en blanc
-        ctx.fillStyle = 'white'
-        ctx.fillRect(0, 0, this.coords.width, this.coords.height)
+        if (this.reRunRequestId != null) cancelAnimationFrame(this.reRunRequestId)
+
+        this.reRunShouldStop = false
+        this.reRunRequestId = requestAnimationFrame(this.run.bind(this))
+    }
+
+    run (timestamp) {
+
+        // Si no té sentit seguir dibuixant (perquè no hi ha canvis de fa estona)
+        if (this.reRunShouldStop) return
+
+        // Mirar quanta estona ha passat des de l'últim dibuix
+        const now = Date.now()
+        const elapsed = now - this.reRunLastDrawTime;
+        if (elapsed > 1000) { // Comprova si han passat més de 2 segons
+            this.reRunShouldStop = true
+            cancelAnimationFrame(this.reRunRequestId)
+            return
+        }
+
+        // Calcula els fps (opcional)
+        const fps = 1000 / elapsed
+        // console.log(`FPS: ${fps.toFixed(2)}, time: ${elapsed}`)
+
+        // Dibuixar la partida
+        this.draw()
+
+        // Guardar el temps actual per a la següent iteració
+        //this.reRunLastDrawTime = now;    
+
+        // Programa el pròxim frame
+        this.reRunRequestId = requestAnimationFrame(this.run.bind(this))
+    }
+
+    draw () {
+
+        this.ctx.fillStyle = 'white'
+        this.ctx.fillRect(0, 0, this.coords.width, this.coords.height)
 
         // "waitingOpponent", "waintingMove", "move", "gameOver" 
         switch (this.gameStatus) {
             case "waitingOpponent":
-                this.drawWaitingOpponent(ctx)
+                this.drawWaitingOpponent(this.ctx)
                 break
             case "gameRound":
-                this.drawBoard(ctx)
+                this.drawBoard(this.ctx)
                 break
             case "gameOver":
-                this.drawBoard(ctx)
-                this.drawGameOver(ctx)
+                this.drawBoard(this.ctx)
+                this.drawGameOver(this.ctx)
                 break
         }
     }
