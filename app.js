@@ -6,13 +6,29 @@ const webSockets = require('./utilsWebSockets.js')
     WebSockets server, example of messages:
 
     From client to server:
-        - Choosen cell          { "type": "movement", "cell", 0 }
+        - Mouse over cell       { "type": "cellOver", "value", 0 }
+        - Choosen cell          { "type": "cellChoice", "value", 0 }
 
     From server to client:
-        - Opponent              { "type": "opponent", "name": "001" }
-        - Movement              { "type": "movement", "board": [] }
-        - YourTurn              { "type": "yourTurn" }
-        - Game Over             { "type": "gameOver", "winner": "001", "board": [] }
+        - socketId              { "type": "socketId", "value": "001" }
+        - initMatch             { "type": "initMatch", "value": match }
+        - gameRound             { "type": "gameRound", "value": match }
+        - opponentOver          { "type": "opponentOver", value: 0 }
+        - gameOver              { "type": "gameOver", "winner": "X", "value": match }
+
+    match objects are like: 
+        { 
+            playerX: "001", 
+            playerO: "002", 
+            board: ["X", "", "", "", "", "", "", "", ""],
+            nextTurn: "O"
+        }
+    cell values are like:
+        0 1 2
+        3 4 5
+        6 7 8
+    winner values are like:
+        "X" or "O" or "" (in case of tie)
  */
 
 var ws = new webSockets()
