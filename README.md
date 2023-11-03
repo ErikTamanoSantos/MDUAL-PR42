@@ -2,9 +2,9 @@
 
 Executar el programa amb:
     
-    ```bash
-    npm run dev
-    ```
+```bash
+npm run dev
+```
 
 Obrir dues finestres de navegador a la direcció
 
