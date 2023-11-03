@@ -20,6 +20,12 @@ class GameViewPlaying extends HTMLElement {
         this.isMyTurn = false
         this.winner = ""
 
+        this.imgX = null
+        this.imgXloaded = false
+
+        this.imgO = null
+        this.imgOloaded = false
+
         // Crea l'element shadow DOM
         this.shadow = this.attachShadow({ mode: 'open' })
     }
@@ -30,9 +36,11 @@ class GameViewPlaying extends HTMLElement {
         // Preload images
         this.imgX = new Image()
         this.imgX.src = '/images/imgX.png'
+        this.imgX.onload = () => { this.imgXloaded = true }
 
         this.imgO = new Image()
         this.imgO.src = '/images/imgO.png'
+        this.imgO.onload = () => { this.imgOloaded = true }
 
         // Carrega els estils CSS
         const style = document.createElement('style')
@@ -449,11 +457,11 @@ class GameViewPlaying extends HTMLElement {
 
             // Dibuixa el contingut de la casella
             if (cell == "X") {
-                if (this.imgX.complete) this.drawImage(ctx, this.imgX, cellCoords, cellSize)
+                if (this.imgXloaded) this.drawImage(ctx, this.imgX, cellCoords, cellSize)
                 else this.drawX(ctx, colorX, cellCoords, cellSize)
             }
             if (cell == "O") {
-                if (this.imgO.complete) this.drawImage(ctx, this.imgO, cellCoords, cellSize)
+                if (this.imgOloaded) this.drawImage(ctx, this.imgO, cellCoords, cellSize)
                 else this.drawO(ctx, colorO, cellCoords, cellSize)
             }
         }
