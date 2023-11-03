@@ -369,27 +369,27 @@ class GameViewPlaying extends HTMLElement {
         var x1 = cellCoords.x + cellSize
         var y1 = cellCoords.y + cellSize
 
-        let dstWidth = x1 - x0;
-        let dstHeight = y1 - y0;
+        let dstWidth = x1 - x0
+        let dstHeight = y1 - y0
     
-        let imageAspectRatio = image.width / image.height;
-        let dstAspectRatio = dstWidth / dstHeight;
+        let imageAspectRatio = image.width / image.height
+        let dstAspectRatio = dstWidth / dstHeight
     
         let finalWidth;
         let finalHeight;
     
         if (imageAspectRatio > dstAspectRatio) {
-            finalWidth = dstWidth;
-            finalHeight = dstWidth / imageAspectRatio;
+            finalWidth = dstWidth
+            finalHeight = dstWidth / imageAspectRatio
         } else {
-            finalHeight = dstHeight;
-            finalWidth = dstHeight * imageAspectRatio;
+            finalHeight = dstHeight
+            finalWidth = dstHeight * imageAspectRatio
         }
     
-        let offsetX = x0 + (dstWidth - finalWidth) / 2;
-        let offsetY = y0 + (dstHeight - finalHeight) / 2;
+        let offsetX = x0 + (dstWidth - finalWidth) / 2
+        let offsetY = y0 + (dstHeight - finalHeight) / 2
     
-        ctx.drawImage(image, offsetX, offsetY, finalWidth, finalHeight);
+        ctx.drawImage(image, offsetX, offsetY, finalWidth, finalHeight)
     }
 
     drawWaitingOpponent (ctx) {
