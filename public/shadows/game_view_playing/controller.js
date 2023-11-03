@@ -27,6 +27,13 @@ class GameViewPlaying extends HTMLElement {
     async connectedCallback() {
         // Quan es crea l'element shadow DOM (no quan es connecta el socket)
 
+        // Preload images
+        this.imgX = new Image()
+        this.imgX.src = '/images/imgX.png'
+
+        this.imgO = new Image()
+        this.imgO.src = '/images/imgO.png'
+
         // Carrega els estils CSS
         const style = document.createElement('style')
         style.textContent = await fetch('/shadows/game_view_playing/style.css').then(r => r.text())
@@ -347,6 +354,36 @@ class GameViewPlaying extends HTMLElement {
         ctx.restore()
     }
 
+    drawImage (ctx, image, cellCoords, cellSize) {
+
+        var x0 = cellCoords.x
+        var y0 = cellCoords.y
+        var x1 = cellCoords.x + cellSize
+        var y1 = cellCoords.y + cellSize
+
+        let dstWidth = x1 - x0;
+        let dstHeight = y1 - y0;
+    
+        let imageAspectRatio = image.width / image.height;
+        let dstAspectRatio = dstWidth / dstHeight;
+    
+        let finalWidth;
+        let finalHeight;
+    
+        if (imageAspectRatio > dstAspectRatio) {
+            finalWidth = dstWidth;
+            finalHeight = dstWidth / imageAspectRatio;
+        } else {
+            finalHeight = dstHeight;
+            finalWidth = dstHeight * imageAspectRatio;
+        }
+    
+        let offsetX = x0 + (dstWidth - finalWidth) / 2;
+        let offsetY = y0 + (dstHeight - finalHeight) / 2;
+    
+        ctx.drawImage(image, offsetX, offsetY, finalWidth, finalHeight);
+    }
+
     drawWaitingOpponent (ctx) {
         var text = 'Esperant un oponent...'
         var x = this.coords.centerX
@@ -412,10 +449,12 @@ class GameViewPlaying extends HTMLElement {
 
             // Dibuixa el contingut de la casella
             if (cell == "X") {
-                this.drawX(ctx, colorX, cellCoords, cellSize)
+                if (this.imgX.complete) this.drawImage(ctx, this.imgX, cellCoords, cellSize)
+                else this.drawX(ctx, colorX, cellCoords, cellSize)
             }
             if (cell == "O") {
-                this.drawO(ctx, colorO, cellCoords, cellSize)
+                if (this.imgO.complete) this.drawImage(ctx, this.imgO, cellCoords, cellSize)
+                else this.drawO(ctx, colorO, cellCoords, cellSize)
             }
         }
     }
