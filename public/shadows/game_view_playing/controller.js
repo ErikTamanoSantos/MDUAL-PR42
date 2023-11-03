@@ -14,12 +14,18 @@ class GameViewPlaying extends HTMLElement {
             board: [],
             nextTurn: "X"
         }
-        this.opponent = ""  // Conté el nom de l'oponent
+        this.opponentId = ""  // Conté l'id de l'oponent
         this.gameStatus = "waitingOpponent" 
+        this.player = "X"
+        this.isMyTurn = false
+
+        // Crea l'element shadow DOM
         this.shadow = this.attachShadow({ mode: 'open' })
     }
 
     async connectedCallback() {
+        // Quan es crea l'element shadow DOM (no quan es connecta el socket)
+
         // Carrega els estils CSS
         const style = document.createElement('style')
         style.textContent = await fetch('/shadows/game_view_playing/style.css').then(r => r.text())
@@ -59,8 +65,8 @@ class GameViewPlaying extends HTMLElement {
 
     showInfo () {
         let txt = `Connected to <b>${socket.url}</b>, with ID <b>${this.socketId}</b>.`
-        if (this.opponent != "") {
-            txt = txt + ` Playing against: <b>${this.opponent}</b>`
+        if (this.opponentId != "") {
+            txt = txt + ` Playing against: <b>${this.opponentId}</b>`
         }
         this.shadow.querySelector('#connectionInfo').innerHTML = txt
     }
@@ -173,6 +179,8 @@ class GameViewPlaying extends HTMLElement {
                 })
             }
         }
+
+        this.draw()
     }
 
     onServerMessage (obj) {
@@ -182,17 +190,21 @@ class GameViewPlaying extends HTMLElement {
             break
         case "initMatch":
             this.match = obj.value
+            this.isMyTurn = false
             if (this.match.playerX == this.socketId) {
-                this.opponent = this.match.playerO
+                this.player = "X"
+                this.opponentId = this.match.playerO
             } else {
-                this.opponent = this.match.playerX
+                this.player = "O"
+                this.opponentId = this.match.playerX
             }
             this.showInfo()
             break
         case "opponentDisconnected":
             console.log("opponentDisconnected")
-            this.opponent = ""
+            this.opponentId = ""
             this.gameStatus = "waitingOpponent"
+            this.showInfo()
             break
         case "opponentOver":
             this.cellOpponentOver = obj.value
@@ -201,24 +213,16 @@ class GameViewPlaying extends HTMLElement {
             this.gameStatus = "gameRound"
             this.cellOpponentOver = -1
             this.match = obj.value
+            if (this.match.nextTurn == "X" || this.match.nextTurn == "O") {
+                this.isMyTurn = true
+            } else {
+                this.isMyTurn = false
+            }
             break
         }
         this.draw()
     }
 
-    isMyTurn () {
-        var nextTurn = this.match.nextTurn
-        var myTurn = false
-
-        if (nextTurn == "X" && this.socketId == this.match.playerX) {
-            myTurn = true
-        } else if (nextTurn == "O" && this.socketId == this.match.playerO) {
-            myTurn = true
-        }   
-        
-        return myTurn
-    }
-    
     getCell(x, y) {
         var cells = this.coords.cells
         var cellSize = this.coords.cellSize
@@ -340,9 +344,17 @@ class GameViewPlaying extends HTMLElement {
     }
 
     drawBoard (ctx) {
-        var color = "black"
         var cellSize = this.coords.cellSize
         var board = this.match.board
+        var colorX = "red"
+        var colorO = "green"
+        var colorBoard = "black"
+
+        if (!this.isMyTurn()) {
+            colorX = "888"
+            colorO = "888"
+            colorBoard = "888"
+        }
 
         for (var cnt = 0; cnt < board.length; cnt++) {
             var cell = board[cnt]
@@ -353,9 +365,9 @@ class GameViewPlaying extends HTMLElement {
                 var cellOverCords = this.coords.cells[this.cellOver]
                 this.fillRect(ctx, 10, "lightblue", cellCoords.x, cellCoords.y, cellSize, cellSize)
                 if (this.socketId == this.match.playerX) {
-                   this.drawX(ctx, "red", cellOverCords, cellSize)
+                   this.drawX(ctx, colorX, cellOverCords, cellSize)
                 } else if (this.socketId == this.match.playerO) {
-                    this.drawO(ctx, "green", cellOverCords, cellSize)
+                    this.drawO(ctx, colorO, cellOverCords, cellSize)
                 } 
             }
 
@@ -371,14 +383,14 @@ class GameViewPlaying extends HTMLElement {
             }
 
             // Dibuixa el requadre de la cel·la
-            this.drawRect(ctx, 10, color, cellCoords.x, cellCoords.y, cellSize, cellSize)
+            this.drawRect(ctx, 10, colorBoard, cellCoords.x, cellCoords.y, cellSize, cellSize)
 
             // Dibuixa el contingut de la cel·la
             if (cell == "X") {
-                this.drawX(ctx, "red", cellCoords, cellSize)
+                this.drawX(ctx, colorX, cellCoords, cellSize)
             }
             if (cell == "O") {
-                this.drawO(ctx, "green", cellCoords, cellSize)
+                this.drawO(ctx, colorO, cellCoords, cellSize)
             }
         }
     }

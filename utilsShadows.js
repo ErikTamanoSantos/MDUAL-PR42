@@ -77,7 +77,7 @@ class Obj {
         for (const line of lines) {
             lineNumber++
             const match = line.match(regex)
-            if (match) {
+            if (match && (match[0].indexOf(".html") >= 0 || match[0].indexOf(".css") >= 0)) {
                 const filePath = './public' + match;
                 const fullPath = path.resolve(filePath)
                 if (await this.isFile(fullPath)) {
